@@ -440,6 +440,7 @@ class ExternalDataSourceViewSet(TeamAndOrgViewSetMixin, viewsets.ModelViewSet):
             incremental_field_type = schema.get("incremental_field_type")
             sync_time_of_day = schema.get("sync_time_of_day")
             should_sync = schema.get("should_sync", False)
+            selected_columns = schema.get("selected_columns")
 
             if should_sync and requires_incremental_fields and incremental_field is None:
                 new_source_model.delete()
@@ -455,6 +456,13 @@ class ExternalDataSourceViewSet(TeamAndOrgViewSetMixin, viewsets.ModelViewSet):
                     data={"message": "Incremental schemas given do not have an incremental field type set"},
                 )
 
+            sync_type_config = {}
+            if requires_incremental_fields:
+                sync_type_config["incremental_field"] = incremental_field
+                sync_type_config["incremental_field_type"] = incremental_field_type
+            if selected_columns:
+                sync_type_config["selected_columns"] = selected_columns
+
             schema_model = ExternalDataSchema.objects.create(
                 name=schema.get("name"),
                 team=self.team,
@@ -462,14 +470,7 @@ class ExternalDataSourceViewSet(TeamAndOrgViewSetMixin, viewsets.ModelViewSet):
                 should_sync=should_sync,
                 sync_type=sync_type,
                 sync_time_of_day=sync_time_of_day,
-                sync_type_config=(
-                    {
-                        "incremental_field": incremental_field,
-                        "incremental_field_type": incremental_field_type,
-                    }
-                    if requires_incremental_fields
-                    else {}
-                ),
+                sync_type_config=sync_type_config,
             )
 
             if should_sync:
@@ -613,6 +614,7 @@ class ExternalDataSourceViewSet(TeamAndOrgViewSetMixin, viewsets.ModelViewSet):
                 else None,
                 "sync_type": None,
                 "rows": schema.row_count,
+                "columns": schema.columns,
             }
             for schema in schemas
         ]
