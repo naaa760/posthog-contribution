@@ -164,6 +164,7 @@ class PostgresSource(SimpleSource[PostgresSourceConfig], SSHTunnelMixin, Validat
 
         for table_name, columns in db_schemas.items():
             column_info = [(col_name, col_type) for col_name, col_type in columns]
+            column_names = [col_name for col_name, _ in column_info]
 
             incremental_field_tuples = filter_postgres_incremental_fields(column_info)
             incremental_fields: list[IncrementalField] = [
@@ -183,6 +184,7 @@ class PostgresSource(SimpleSource[PostgresSourceConfig], SSHTunnelMixin, Validat
                     supports_append=len(incremental_fields) > 0,
                     incremental_fields=incremental_fields,
                     row_count=row_counts.get(table_name, None),
+                    columns=column_names,
                 )
             )
 
@@ -243,4 +245,5 @@ class PostgresSource(SimpleSource[PostgresSourceConfig], SSHTunnelMixin, Validat
             db_incremental_field_last_value=inputs.db_incremental_field_last_value,
             chunk_size_override=schema.chunk_size_override,
             team_id=inputs.team_id,
+            selected_columns=schema.selected_columns,
         )
