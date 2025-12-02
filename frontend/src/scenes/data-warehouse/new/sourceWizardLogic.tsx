@@ -255,6 +255,10 @@ export const sourceWizardLogic = kea<sourceWizardLogicType>([
         openSyncMethodModal: (schema: ExternalDataSourceSyncSchema) => ({ schema }),
         cancelSyncMethodModal: true,
         toggleAllTables: (selectAll: boolean) => ({ selectAll }),
+        updateSchemaColumns: (schema: ExternalDataSourceSyncSchema, selectedColumns: string[]) => ({
+            schema,
+            selectedColumns,
+        }),
     }),
     connect(() => ({
         values: [
@@ -313,7 +317,11 @@ export const sourceWizardLogic = kea<sourceWizardLogicType>([
         databaseSchema: [
             [] as ExternalDataSourceSyncSchema[],
             {
-                setDatabaseSchemas: (_, { schemas }) => schemas,
+                setDatabaseSchemas: (_, { schemas }) =>
+                    schemas.map((s) => ({
+                        ...s,
+                        selected_columns: s.columns || [],
+                    })),
                 toggleSchemaShouldSync: (state, { schema, shouldSync }) => {
                     return state.map((s) => ({
                         ...s,
@@ -327,6 +335,12 @@ export const sourceWizardLogic = kea<sourceWizardLogicType>([
                         incremental_field: s.table === schema.table ? incrementalField : s.incremental_field,
                         incremental_field_type:
                             s.table === schema.table ? incrementalFieldType : s.incremental_field_type,
+                    }))
+                },
+                updateSchemaColumns: (state, { schema, selectedColumns }) => {
+                    return state.map((s) => ({
+                        ...s,
+                        selected_columns: s.table === schema.table ? selectedColumns : s.selected_columns,
                     }))
                 },
             },
@@ -705,6 +719,7 @@ export const sourceWizardLogic = kea<sourceWizardLogicType>([
                                         incremental_field: schema.incremental_field,
                                         incremental_field_type: schema.incremental_field_type,
                                         sync_time_of_day: schema.sync_time_of_day,
+                                        selected_columns: schema.selected_columns,
                                     })),
                                 },
                             })
