@@ -110,6 +110,7 @@ class MSSQLSource(SimpleSource[MSSQLSourceConfig], SSHTunnelMixin, ValidateDatab
 
         for table_name, columns in db_schemas.items():
             column_info = [(col_name, col_type) for col_name, col_type in columns]
+            column_names = [col_name for col_name, _ in column_info]
 
             incremental_field_tuples = filter_mssql_incremental_fields(column_info)
             incremental_fields: list[IncrementalField] = [
@@ -128,6 +129,7 @@ class MSSQLSource(SimpleSource[MSSQLSourceConfig], SSHTunnelMixin, ValidateDatab
                     supports_incremental=len(incremental_fields) > 0,
                     supports_append=len(incremental_fields) > 0,
                     incremental_fields=incremental_fields,
+                    columns=column_names,
                 )
             )
 
