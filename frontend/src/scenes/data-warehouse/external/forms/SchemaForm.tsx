@@ -1,5 +1,5 @@
 import { useActions, useValues } from 'kea'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
 import { LemonButton, LemonCheckbox, LemonModal, LemonTable, LemonTag, Tooltip } from '@posthog/lemon-ui'
 
@@ -13,8 +13,10 @@ import { SyncMethodForm } from './SyncMethodForm'
 
 export default function SchemaForm(): JSX.Element {
     const containerRef = useFloatingContainer()
-    const { toggleSchemaShouldSync, openSyncMethodModal, toggleAllTables } = useActions(sourceWizardLogic)
+    const { toggleSchemaShouldSync, openSyncMethodModal, toggleAllTables, updateSchemaColumns } =
+        useActions(sourceWizardLogic)
     const { databaseSchema, tablesAllToggledOn, suggestedTablesMap } = useValues(sourceWizardLogic)
+    const [columnModalSchema, setColumnModalSchema] = useState<ExternalDataSourceSyncSchema | null>(null)
 
     const onClickCheckbox = (schema: ExternalDataSourceSyncSchema, checked: boolean): void => {
         if (schema.sync_type === null) {
@@ -133,6 +135,35 @@ export default function SchemaForm(): JSX.Element {
                                 },
                             },
                             {
+                                key: 'columns',
+                                title: 'Columns',
+                                align: 'right',
+                                tooltip: 'Select which columns to import from this table',
+                                render: function RenderColumns(_, schema) {
+                                    if (!schema.columns || schema.columns.length === 0) {
+                                        return null
+                                    }
+
+                                    const selectedCount = schema.selected_columns?.length || 0
+                                    const totalCount = schema.columns.length
+
+                                    return (
+                                        <div className="justify-end flex">
+                                            <LemonButton
+                                                className="my-1"
+                                                size="small"
+                                                type="secondary"
+                                                onClick={() => setColumnModalSchema(schema)}
+                                            >
+                                                {selectedCount === totalCount
+                                                    ? `All ${totalCount} columns`
+                                                    : `${selectedCount} of ${totalCount} columns`}
+                                            </LemonButton>
+                                        </div>
+                                    )
+                                },
+                            },
+                            {
                                 key: 'sync_type',
                                 title: 'Sync method',
                                 align: 'right',
@@ -178,6 +209,17 @@ export default function SchemaForm(): JSX.Element {
                 </div>
             </div>
             <SyncMethodModal />
+            <ColumnSelectionModal
+                schema={columnModalSchema}
+                isOpen={columnModalSchema !== null}
+                onClose={() => setColumnModalSchema(null)}
+                onSave={(selectedColumns) => {
+                    if (columnModalSchema) {
+                        updateSchemaColumns(columnModalSchema, selectedColumns)
+                    }
+                    setColumnModalSchema(null)
+                }}
+            />
         </>
     )
 }
@@ -219,6 +261,81 @@ const SyncMethodModal = (): JSX.Element => {
                     cancelSyncMethodModal()
                 }}
             />
+        </LemonModal>
+    )
+}
+
+interface ColumnSelectionModalProps {
+    schema: ExternalDataSourceSyncSchema | null
+    isOpen: boolean
+    onClose: () => void
+    onSave: (selectedColumns: string[]) => void
+}
+
+const ColumnSelectionModal = ({ schema, isOpen, onClose, onSave }: ColumnSelectionModalProps): JSX.Element => {
+    const [selectedColumns, setSelectedColumns] = useState<string[]>([])
+
+    useEffect(() => {
+        if (schema) {
+            setSelectedColumns(schema.selected_columns || schema.columns || [])
+        }
+    }, [schema])
+
+    if (!schema) {
+        return <></>
+    }
+
+    const allColumns = schema.columns || []
+    const allSelected = selectedColumns.length === allColumns.length
+
+    return (
+        <LemonModal
+            title={
+                <>
+                    Select columns for <span className="font-mono">{schema.table}</span>
+                </>
+            }
+            isOpen={isOpen}
+            onClose={onClose}
+            footer={
+                <>
+                    <LemonButton type="secondary" onClick={onClose}>
+                        Cancel
+                    </LemonButton>
+                    <LemonButton type="primary" onClick={() => onSave(selectedColumns)}>
+                        Save
+                    </LemonButton>
+                </>
+            }
+        >
+            <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2 border-b pb-2">
+                    <LemonCheckbox
+                        checked={allSelected}
+                        onChange={(checked) => {
+                            setSelectedColumns(checked ? allColumns : [])
+                        }}
+                    />
+                    <span className="font-semibold">Select all columns ({allColumns.length})</span>
+                </div>
+                <div className="flex flex-col gap-1 max-h-96 overflow-y-auto">
+                    {allColumns.map((column) => (
+                        <div key={column} className="flex items-center gap-2">
+                            <LemonCheckbox
+                                checked={selectedColumns.includes(column)}
+                                onChange={(checked) => {
+                                    if (checked) {
+                                        setSelectedColumns([...selectedColumns, column])
+                                    } else {
+                                        setSelectedColumns(selectedColumns.filter((c) => c !== column))
+                                    }
+                                }}
+                            />
+                            <span className="font-mono">{column}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
         </LemonModal>
     )
 }
