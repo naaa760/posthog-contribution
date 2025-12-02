@@ -4939,6 +4939,8 @@ export interface ExternalDataSourceSyncSchema {
     incremental_fields: IncrementalField[]
     incremental_available: boolean
     append_available: boolean
+    columns?: string[]
+    selected_columns?: string[]
 }
 
 export interface ExternalDataSourceSchema extends SimpleExternalDataSourceSchema {
