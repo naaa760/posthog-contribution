@@ -187,15 +187,25 @@ def _build_query(
     incremental_field_type: Optional[IncrementalFieldType],
     db_incremental_field_last_value: Optional[Any],
     add_sampling: Optional[bool] = False,
+    selected_columns: Optional[list[str]] = None,
 ) -> sql.Composed:
+    column_list = (
+        sql.SQL(", ").join([sql.Identifier(col) for col in selected_columns]) if selected_columns else sql.SQL("*")
+    )
     if not should_use_incremental_field:
         if add_sampling:
             if table_type == "view":
-                query = sql.SQL("SELECT * FROM {} WHERE random() < 0.01").format(sql.Identifier(schema, table_name))
+                query = sql.SQL("SELECT {columns} FROM {table} WHERE random() < 0.01").format(
+                    columns=column_list, table=sql.Identifier(schema, table_name)
+                )
             else:
-                query = sql.SQL("SELECT * FROM {} TABLESAMPLE SYSTEM (1)").format(sql.Identifier(schema, table_name))
+                query = sql.SQL("SELECT {columns} FROM {table} TABLESAMPLE SYSTEM (1)").format(
+                    columns=column_list, table=sql.Identifier(schema, table_name)
+                )
         else:
-            query = sql.SQL("SELECT * FROM {}").format(sql.Identifier(schema, table_name))
+            query = sql.SQL("SELECT {columns} FROM {table}").format(
+                columns=column_list, table=sql.Identifier(schema, table_name)
+            )
 
         if add_sampling:
             query_with_limit = cast(LiteralString, f"{query.as_string()} LIMIT 1000")
@@ -212,8 +222,9 @@ def _build_query(
     if add_sampling:
         if table_type == "view":
             query = sql.SQL(
-                "SELECT * FROM {schema}.{table} WHERE {incremental_field} >= {last_value} AND random() < 0.01"
+                "SELECT {columns} FROM {schema}.{table} WHERE {incremental_field} >= {last_value} AND random() < 0.01"
             ).format(
+                columns=column_list,
                 schema=sql.Identifier(schema),
                 table=sql.Identifier(table_name),
                 incremental_field=sql.Identifier(incremental_field),
@@ -221,15 +232,17 @@ def _build_query(
             )
         else:
             query = sql.SQL(
-                "SELECT * FROM {schema}.{table} TABLESAMPLE SYSTEM (1) WHERE {incremental_field} >= {last_value}"
+                "SELECT {columns} FROM {schema}.{table} TABLESAMPLE SYSTEM (1) WHERE {incremental_field} >= {last_value}"
             ).format(
+                columns=column_list,
                 schema=sql.Identifier(schema),
                 table=sql.Identifier(table_name),
                 incremental_field=sql.Identifier(incremental_field),
                 last_value=sql.Literal(db_incremental_field_last_value),
             )
     else:
-        query = sql.SQL("SELECT * FROM {schema}.{table} WHERE {incremental_field} >= {last_value}").format(
+        query = sql.SQL("SELECT {columns} FROM {schema}.{table} WHERE {incremental_field} >= {last_value}").format(
+            columns=column_list,
             schema=sql.Identifier(schema),
             table=sql.Identifier(table_name),
             incremental_field=sql.Identifier(incremental_field),
@@ -628,6 +641,7 @@ def postgres_source(
     team_id: Optional[int] = None,
     incremental_field: Optional[str] = None,
     incremental_field_type: Optional[IncrementalFieldType] = None,
+    selected_columns: Optional[list[str]] = None,
 ) -> SourceResponse:
     table_name = table_names[0]
     if not table_name:
@@ -659,6 +673,7 @@ def postgres_source(
                     incremental_field_type,
                     db_incremental_field_last_value,
                     add_sampling=True,
+                    selected_columns=selected_columns,
                 )
 
                 inner_query_without_limit = _build_query(
@@ -669,6 +684,7 @@ def postgres_source(
                     incremental_field,
                     incremental_field_type,
                     db_incremental_field_last_value,
+                    selected_columns=selected_columns,
                 )
                 cursor.execute(
                     sql.SQL("SET LOCAL statement_timeout = {timeout}").format(
